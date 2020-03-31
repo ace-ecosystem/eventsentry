@@ -51,7 +51,13 @@ class VxstreamParser(BaseSandboxParser):
                     http_request['host'] = dns_request['request']
 
         self.processes = self.parse_process_tree()
-        self.process_tree = self.make_process_tree()
+        try:
+            self.process_tree = self.make_process_tree()
+        except RecursionError as e:
+            self.logger.error("Caught RecursionError creating process tree string.")
+            self.process_tree = "[WARNING] Caught RecursionError creating process tree string representaion. Printing unstructured list instead. Total processes in tree: {}\n\n".format(len(self.processes))
+            for process in self.processes:
+                self.process_tree += process['command'] + '\n'
         self.process_tree_urls = self.parse_process_tree_urls()
         self.memory_urls = self.parse_memory_urls()
         self.memory_strings = self.parse_memory_strings()

@@ -1,11 +1,12 @@
 import json
 import logging
 import os
+import subprocess
 
 from lib.config import config
 from lib.constants import HOME_DIR
 from lib.indicator import make_url_indicators
-
+#from requests.exceptions import HTTPError
 
 class ACEAlert:
     def __init__(self, alert_path):
@@ -91,12 +92,16 @@ class ACEAlert:
         urls = set()
         url_files = self.get_all_analysis_paths('saq.modules.file_analysis:URLExtractionAnalysis')
         for file in url_files:
-            with open(os.path.join(self.alert_dir, '.ace', file), encoding='utf8') as j:
-                json_data = json.load(j)
-                for url in json_data['urls']:
-                    if url.endswith('/'):
-                        url = url[:-1]
-                    urls.add(url)
+            try:
+                with open(os.path.join(self.alert_dir, '.ace', file), encoding='utf8') as j:
+                    json_data = json.load(j)
+                    for url in json_data['urls']:
+                        if url.endswith('/'):
+                            url = url[:-1]
+                        urls.add(url)
+            except FileNotFoundError as e:
+                logging.warning("Caught FileNotFoundError trying to open '{}'".format(os.path.join(self.alert_dir, '.ace', file)))
+ 
         self.urls = sorted(list(urls))
 
         # Make indicators from the URLs.
@@ -133,6 +138,13 @@ class ACEAlert:
         self.tags = sorted(list(tags))
         self.logger.debug('"{}" alert has these tags: {}'.format(self.name, self.tags))
 
+        """
+        #
+        # Falcon Reports
+        #
+        """
+        self.download_full_falcon_reports()
+
     @property
     def json(self):
         """ Return a JSON compatible view of the ACE alert. """
@@ -168,3 +180,36 @@ class ACEAlert:
                 pass
 
         return analysis_paths
+
+    def get_all_falcon_sandbox_jobs(self):
+        job_ids = []
+        for path in self.get_all_analysis_paths('saq.modules.falcon_sandbox:FalconSandboxAnalysis'):
+            falcon_json = None
+            if os.path.exists(os.path.join(self.alert_dir, '.ace', path)):
+                with open(os.path.join(self.alert_dir, '.ace', path), 'r') as fp:
+                    falcon_json = json.load(fp)
+            if falcon_json:
+                if 'report_summary' in falcon_json and falcon_json['report_summary'] and 'job_id' in falcon_json['report_summary']:
+                    job_ids.append(falcon_json['report_summary']['job_id'])
+                if 'submission_result' in falcon_json and falcon_json['submission_result'] and 'job_id' in falcon_json['submission_result']:
+                    job_ids.append(falcon_json['submission_result']['job_id'])
+        return list(set(job_ids))
+
+    def download_full_falcon_reports(self):
+        event_dir = os.path.dirname(self.alert_dir)
+        for job_id in self.get_all_falcon_sandbox_jobs():
+            proxy = config['network']['proxy']
+            output_path = os.path.join(event_dir, job_id+'.falcon.json')
+            falcon_command = 'falcon-sandbox get report {} -o {}'.format(job_id, output_path)
+            command = 'export https_proxy={} && {} && unset https_proxy'.format(proxy, falcon_command)
+            self.logger.info("Attempting to get full falcon report with: {}".format(falcon_command))
+            try:
+                output = subprocess.check_output(command, shell=True).decode('utf-8')
+            #except HTTPError as e:
+            #    self.logger.warning("Caught HTTPError from falcon-sandbox: {}".format(e))
+            except Exception as e:
+                self.logger.error("Got Error attempting to get falcon report: {}".format(e))
+            if os.path.exists(output_path) and os.stat(output_path).st_size == 0:
+                # problem happened and an empty report was written
+                self.logger.error("EMPTY FALCON REPORT INDICATES 'falcon-sandbox' had a problem. Deleteing {}".format(output_path))
+                os.remove(output_path)
