@@ -7,7 +7,15 @@ WORKDIR /eventsentry/
 
 # Install the required packages.
 ENV DEBIAN_FRONTEND=noninteractive
+
+# TODO: Make better solution for this
+# https://blog.zackad.com/en/2017/08/17/add-ppa-simple-way.html
+#RUN echo "deb http://ppa.launchpad.net/maxmind/ppa/ubuntu bionic main" >> /etc/apt/source.list 
+#RUN echo "deb-src http://ppa.launchpad.net/maxmind/ppa/ubuntu bionic main" >> /etc/apt/source.list
+
 RUN apt-get update \
+    && apt-get install software-properties-common -y \
+    && add-apt-repository ppa:maxmind/ppa -y \
     && apt-get install -y \
         dnsutils \
         dumb-init \
@@ -54,9 +62,14 @@ RUN chmod 600 /root/.splunklib.ini
 
 # Install cbinterface config
 COPY ./app/conf/local/credentials.response /etc/carbonblack/credentials.response
+COPY ./app/conf/local/cbinterface.ini /etc/carbonblack/cbinterface.ini
 
 # Set up the app directory.
 WORKDIR /eventsentry/app
+
+# Copy Falcon config
+RUN mkdir /root/.config
+COPY ./app/conf/local/falcon.ini /root/.config/falcon.ini
 
 # Install the PIP packages.
 COPY requirements.txt requirements.txt
