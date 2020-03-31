@@ -53,14 +53,21 @@ class Module(DetectionModule):
                         exe_match = exe
 
                 if exe_match:
-                    process_match = False
+                    process_match = process_match_v3 = False
                     if tree.find('winword') < tree.find('cmd') < tree.find('powershell') < tree.find(exe_match):
                         process_match = True
+                    elif tree.find('winword') < tree.find('powershell') < tree.find(exe_match):
+                        self.logger.warning('Looks like emotet "v3" going straigt to powershell.exe from doc and then .exe: {}'.format(exe_match))
+                        process_match_v3 = True
 
-                    if exe_match and process_match:
+                    if exe_match and (process_match or process_match_v3):
                         if any(request['method'] == 'POST' for request in sample['http_requests']):
-                            self.detections.append('Detected Emotet v1 by the HTTP POSTs, process tree, and .exe: {}'.format(exe_match))
-                            self.tags.append('emotet')
+                            if process_match:
+                                self.detections.append('Detected Emotet v1 by the HTTP POSTs, process tree, and .exe: {}'.format(exe_match))
+                                self.tags.append('emotet')
+                            elif process_match_v3:
+                                self.detections.append('Detected Emotet v3 by the HTTP POSTs, process tree, and .exe: {}'.format(exe_match))
+                                self.tags.append('emotet')
                         else:
                             self.logger.warning('Looks like we detected Emotet, but there are no HTTP POST requests.')
                     else:

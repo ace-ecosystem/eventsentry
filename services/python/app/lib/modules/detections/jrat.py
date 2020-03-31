@@ -15,16 +15,25 @@ class Module(DetectionModule):
         for sample in self.event_json['sandbox']:
             dropped_name = ''
             dropped_path = ''
+            dropped_id_txt = ''
             for dropped in sample['dropped_files']:
                 if dropped['filename'].startswith('Retrive') and dropped['filename'].endswith('.vbs'):
                     dropped_name = dropped['filename']
                 if dropped['filename'] == 'ID.txt':
                     if dropped_path_regex.search(dropped['path']):
                         dropped_path = dropped['path']
+                    else:
+                        dropped_id_txt = dropped['filename']
             if dropped_name and dropped_path:
                 self.detections.append('Detected jRAT/Adwind by the dropped file "{}" and dropped path "{}"'.format(dropped_name, dropped_path))
                 self.tags.append('jrat')
                 self.tags.append('adwind')
+                self.tags.append('rat')
+            elif dropped_name and dropped_id_txt:
+                self.detections.append('Detected jRAT/Adwind by the dropped file "{}" and dropped "ID.txt"'.format(dropped_name))
+                self.tags.append('jrat')
+                self.tags.append('adwind')
+                self.tags.append('rat')
             elif dropped_name and not dropped_path:
                 self.detections.append('ERROR: Looks like we detected jRAT/Adwind by the dropped file "{}" but did not find ID.txt dropped file path'.format(dropped_name))
             elif dropped_path and not dropped_name:

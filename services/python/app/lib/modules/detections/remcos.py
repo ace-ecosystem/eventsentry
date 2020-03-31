@@ -17,3 +17,15 @@ class Module(DetectionModule):
                 if 'remcos v' in memory_string.lower():
                     self.detections.append('Detected Remcos by the memory string: {}'.format(memory_string))
                     self.tags.append('remcos')
+
+            for dns_request in sample['dns_requests']:
+                if 'remcos' in dns_request['request']:
+                    self.detections.append('Detected Remcos by the DNS request for: {}'.format(dns_request['request']))
+                    self.tags.append('remcos')
+                    self.tags.append('rat')
+
+            for mutex in sample['mutexes']:
+                if 'remcos' in mutex.lower():
+                    self.detections.append('Detected Remcos by this MUTEX: {}'.format(mutex))
+                    self.tags.append('remcos')
+                    self.tags.append('rat')
