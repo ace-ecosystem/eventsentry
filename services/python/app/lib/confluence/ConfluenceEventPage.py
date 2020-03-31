@@ -305,6 +305,7 @@ class ConfluenceEventPage(BaseConfluencePage):
     def read_indicator_summary_table(self):
         good_indicators = []
         whitelisted_indicators = []
+        deprecated_indicators = []
 
         try:
             # Get all of the rows from the table.
@@ -321,25 +322,38 @@ class ConfluenceEventPage(BaseConfluencePage):
 
             # If, in rare cases, there are no tags to split, then it will throw an AttributeError.
             try:
-                indicator = {'status': columns[0].string, 'type': columns[2].string,
-                             'value': columns[3].string, 'tags': columns[4].string.split(',')}
+                indicator = {'status': columns[0].string, 'type': columns[3].string,
+                             'value': columns[4].string, 'tags': columns[5].string.split(',')}
+            #except IndexError:
+            #    self.logger.warning("Temporary solution for closing events opened before Deprecated functionality.")
+            #    indicator = {'status': columns[0].string, 'type': columns[2].string,
+            #                 'value': columns[3].string, 'tags': columns[4].string.split(',')}
             except AttributeError:
-                indicator = {'status': columns[0].string, 'type': columns[2].string,
-                             'value': columns[3].string, 'tags': columns[4].string}
+                indicator = {'status': columns[0].string, 'type': columns[3].string,
+                             'value': columns[4].string, 'tags': columns[5].string}
 
             # If the whitelist checkbox is incomplete (unchecked), it is a good indicator.
             # Also, since we only display the whitelist checkboxes for New indicators, if there
             # is an exception when getting the checkbox string, we will assume it is a good indicator.
             try:
+                self.logger.debug("Whitelist Column: {}".format(columns[1]))
+                self.logger.debug("Deprecate Column: {}".format(columns[2]))
                 whitelist = columns[1].find('ac:task-status').string
-                if 'incomplete' in whitelist:
+                deprecate = columns[2].find('ac:task-status').string
+                if 'complete' == whitelist and 'complete' == deprecate:
+                    self.logger.error("BOTH Whitelist and Deprecate check boxes checked. Marking as good. Indicator={}".format(indicator))
                     good_indicators.append(indicator)
+                if 'incomplete' in whitelist:
+                    if 'incomplete' in deprecate:
+                        good_indicators.append(indicator)
+                    else:
+                        deprecated_indicators.append(indicator)
                 else:
                     whitelisted_indicators.append(indicator)
             except AttributeError:
                 good_indicators.append(indicator)
 
-        return good_indicators, whitelisted_indicators
+        return good_indicators, whitelisted_indicators, deprecated_indicators
 
     def update_tags(self, event_json):
         self.logger.debug('Updating tags on the wiki page.')
@@ -499,7 +513,7 @@ class ConfluenceEventPage(BaseConfluencePage):
         tr = self.new_tag('tr', parent=table)
 
         # Create the table header elements.
-        header_titles = ['Status', 'Whitelist', 'Type', 'Value', 'Tags']
+        header_titles = ['Status', 'Whitelist', 'Deprecate', 'Type', 'Value', 'Tags']
         for title in header_titles:
             td = self.new_tag('td', parent=tr)
             td['style'] = 'font-weight: bold'
@@ -521,6 +535,18 @@ class ConfluenceEventPage(BaseConfluencePage):
                 task = self.new_tag('ac:task', parent=tasklist)
                 taskid = self.new_tag('ac:task-id', parent=task)
                 taskid.string = str(i)
+                taskstatus = self.new_tag('ac:task-status', parent=task)
+                taskstatus.string = 'incomplete'
+                taskbody = self.new_tag('ac:task-body', parent=task)
+                taskbody.string = ''
+
+            # Set the Deprecated status only if it is a New indicator.
+            td = self.new_tag('td', parent=tr)
+            if good_indicators[i]['status'] == 'New':
+                tasklist = self.new_tag('ac:task-list', parent=td)
+                task = self.new_tag('ac:task', parent=tasklist)
+                taskid = self.new_tag('ac:task-id', parent=task)
+                taskid.string = str(i)+'-Dep'
                 taskstatus = self.new_tag('ac:task-status', parent=task)
                 taskstatus.string = 'incomplete'
                 taskbody = self.new_tag('ac:task-body', parent=task)
@@ -1194,6 +1220,8 @@ class ConfluenceEventPage(BaseConfluencePage):
                     display_name = 'VxStream'
                 elif 'wildfire' in url:
                     display_name = 'Wildfire'
+                elif 'falcon' in url:
+                    display_name = 'Falcon'
                 else:
                     display_name = 'Unknown'
                 link = self.new_tag('a', parent=li)

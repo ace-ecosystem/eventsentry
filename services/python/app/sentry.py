@@ -153,7 +153,28 @@ def process_event(event, sip_campaign_names):
         """
 
         # Read the Indicator Summary table to see if there are any checked (whitelisted) indicators.
-        good_indicators, whitelisted_indicators = wiki.read_indicator_summary_table()
+        good_indicators, whitelisted_indicators, deprecated_indicators = wiki.read_indicator_summary_table()
+
+        if deprecated_indicators:
+            logging.info('Detected newly deprecated indicators: {}'.format(e.json['name']))
+
+            # Deprecate these indicators
+            if sip:
+                for i in deprecated_indicators:
+                    logging.warning('Deprecating the following indicator of type "{}" : {}'.format(i['type'], i['value']))
+                    try:
+                        data = {'references': [{'source': event_source, 'reference': wiki.get_page_url()}],
+                                'status': 'Deprecated',
+                                'confidence': 'low',
+                                'impact': 'low',
+                                'type': i['type'],
+                                'username': 'eventsentry',
+                                'value': i['value']}
+                        result = sip.post('indicators', data)
+                    except ConflictError:
+                        pass
+                    except:
+                        logging.exception('Error deprecating "{}" indicator "{}"'.format(i['type'], i['value']))
 
         if whitelisted_indicators:
 
@@ -254,10 +275,12 @@ def process_event(event, sip_campaign_names):
                     data = {'references': [{'source': event_source, 'reference': wiki.get_page_url()}],
                             'confidence': 'low',
                             'impact': 'low',
-                            'tags': i['tags'],
+                            # SIP throws an internal server error if there are duplicate tags at creation
+                            'tags': list(set(i['tags'])),
                             'type': i['type'],
                             'username': 'eventsentry',
                             'value': i['value']}
+                    logging.info("Indicator data: {}".format(data))
                     try:
                         result = sip.post('indicators', data)
                         logging.warning('Added "{}" manual indicator "{}" to SIP: {}'.format(i['type'], i['value'], result['id']))
@@ -475,7 +498,7 @@ def process_event(event, sip_campaign_names):
         e.json['wiki_version'] = wiki.get_page_version()
 
         # Read the indicator summary table.
-        good_indicators, whitelisted_indicators = wiki.read_indicator_summary_table()
+        good_indicators, whitelisted_indicators, deprecated_indicators = wiki.read_indicator_summary_table()
 
         # Write out the event JSON.
         e.write_json()
@@ -493,7 +516,7 @@ def process_event(event, sip_campaign_names):
 
         # Add each good indicator into SIP.
         if sip:
-            good_indicators, whitelisted_indicators = wiki.read_indicator_summary_table()
+            good_indicators, whitelisted_indicators, deprecated_indicators = wiki.read_indicator_summary_table()
             for i in good_indicators:
                 tags = sorted(list(set(i['tags'] + e.json['tags'])))
                 ignore_these_tags = config['wiki']['ignore_these_tags']
