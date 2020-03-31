@@ -79,6 +79,7 @@ class Module(DetectionModule):
                     # This is the actual command line version of the Splunk query.
                     command = '{} --enviro {} -s "{}" -e "{}" --json "index=email* mail_from=\\"*{}*\\" subject=\\"*{}*\\"| table message_id subject"'.format(SPLUNKLIB, company, start_time, end_time, sender, subject)
                     try:
+                        logging.info("Running splunk search for missed phish: {}".format(command))
                         output = subprocess.check_output(command, shell=True).decode('utf-8')
 
                         # If there was output, it means the Splunk search returned something.
@@ -102,6 +103,7 @@ class Module(DetectionModule):
                     # This is the actual command line version of the Splunk query.
                     command = '{} --enviro {} -s "{}" -e "{}" --json "index=email* mail_from=\\"*{}*\\" | table message_id subject"'.format(SPLUNKLIB, company, start_time, end_time, sender)
                     try:
+                        logging.info("Running splunk search for missed phish: {}".format(command))
                         output = subprocess.check_output(command, shell=True).decode('utf-8')
 
                         # If there was output, it means the Splunk search returned something.
@@ -125,6 +127,7 @@ class Module(DetectionModule):
                     # This is the actual command line version of the Splunk query.
                     command = '{} --enviro {} -s "{}" -e "{}" --json "index=email* attachment_hashes=\\"*{}*\\" | table message_id subject"'.format(SPLUNKLIB, company, start_time, end_time, attachment_hash)
                     try:
+                        logging.info("Running splunk search for missed phish: {}".format(command))
                         output = subprocess.check_output(command, shell=True).decode('utf-8')
 
                         # If there was output, it means the Splunk search returned something.
