@@ -6,6 +6,10 @@ import pytz
 import re
 import subprocess
 
+from cbapi.response import *
+from cbinterface.modules.process import ProcessWrapper
+from cbinterface.modules.helpers import as_configured_timezone
+
 from lib.modules.DetectionModule import *
 from cbinterface.modules.helpers import CONFIGURED_TIMEBASE as cbi_timezone
 
@@ -30,6 +34,12 @@ class Module(DetectionModule):
         for process_name in ignore_these_process_names:
             ignore_these_process_names_string += '-process_name:{} '.format(process_name)
 
+        # These are common file names that should be ignored in queries.
+        ignore_these_filenames = self.config['ignore_these_filenames']
+
+        # Ignore these MD5s all together
+        ignore_these_md5s = self.config['ignore_these_md5s']
+
         # These are the process MD5s that will be ignored from the queries.
         ignore_these_process_md5s = self.config['ignore_these_process_md5s']
         ignore_these_process_md5s_string = ''
@@ -48,13 +58,18 @@ class Module(DetectionModule):
         for user in ignore_these_users:
             ignore_these_users_string += '-username:{} '.format(user)
 
+
         # Get all of the good Windows - FileName indicators from the event.
         good_indicators = [i for i in self.event_json['indicators'] if not i['whitelisted']]
         filenames = list(set([i['value'] for i in good_indicators if i['type'] == 'Windows - FileName' and (i['status'] == 'New' or i['status'] == 'Analyzed' or i['status'] == 'In Progress')]))
+        # remove filenames we want to ignore
+        filenames = [f for f in filenames if f not in ignore_these_filenames]
         self.logger.debug('cbinterface filenames: {}'.format(filenames))
 
         # Get all of the good Hash - MD5 indicators from the event.
         md5s = list(set([i['value'] for i in good_indicators if i['type'] == 'Hash - MD5' and (i['status'] == 'New' or i['status'] == 'Analyzed' or i['status'] == 'In Progress')]))
+        # remove and md5s we want to ignore
+        md5s = [md5 for md5 in md5s if md5 not in ignore_these_md5s]
         self.logger.debug('cbinterface md5s: {}'.format(md5s))
 
         # Get the event time so that we can limit the scope of the cbinterface queries.
@@ -77,50 +92,72 @@ class Module(DetectionModule):
 
             # Run the cbinterface commands for each company in the event.
             for company in company_names:
-            
+
+                # Create CbResponse object 
+                cb = CbResponseAPI(profile=company)
+ 
                 # Search for each filename.
                 for filename in filenames:
 
-                    # Build and run the cbinterface command.
-                    command = 'cbinterface -e {} query --no-warnings \'{} {} {} {} (filemod:"{}" OR cmdline:"{}")\' -s \'{}\''.format(company, ignore_these_process_names_string, ignore_these_process_md5s_string, ignore_these_computers_string, ignore_these_users_string, filename, filename, cbi_time_string)
-                    self.logger.debug(command)
+                    query = '{} {} {} {} (filemod:"{}" OR cmdline:"{}")'.format(ignore_these_process_names_string, ignore_these_process_md5s_string, ignore_these_computers_string, ignore_these_users_string, filename, filename)
+
                     try:
-                        output = subprocess.check_output(command, shell=True).decode('utf-8')
+                        processes = cb.select(Process).where(query).group_by('id').min_last_server_update(cbi_time_string.replace(' ','T')+'Z')
+                        self.logger.info("Searching Carbon Black data for file modifications with: {}".format(query))
 
-                        # If there was output, it means the search returned something.
-                        if output:
-
-                            # Loop over each of the lines to try and find the GUI Link line.
-                            for line in output.splitlines():
-
-                                if 'GUI Link: ' in line:
-                                    gui_link = line.replace('GUI Link: ', '').strip()
-                                    self.detections.append('! DETECTED FILENAME {} ! {}'.format(filename, gui_link))
+                        if processes:
+                            if len(processes) > 500:
+                                self.logger.warning("{} processes returned by Carbon Black for '{}' since '{}'".format(len(processes), query, cbi_time_string))
+                                self.detections.append('! DETECTED {} PROCESSSES THAT MADE "{}" LIKE FILEMODS ! -- TOO LARGE of dataset to display, only including first 100 results in extra detections.'.format(len(processes), filename))
+                                self.tags.append('incidents')
+                                self.tags.append('exploitation')
+                                for proc in processes[:100]:
+                                    proc_summary = "Hostname:{} User:{} Process_Name:{} Command_Line:{} GUI_Link:{}".format(proc.hostname,
+                                                                                                                            proc.username,
+                                                                                                                            proc.process_name,
+                                                                                                                            proc.cmdline,
+                                                                                                                            proc.webui_link)
+                                    self.extra.append(proc_summary)
+                            else:
+                                for proc in processes:
+                                    self.detections.append('! DETECTED FILENAME {} ! {}'.format(filename, proc.webui_link))
                                     self.tags.append('incidents')
                                     self.tags.append('exploitation')
-                                    self.extra.append(output)
+                                    # just using the convienient display of ProcessWrapper
+                                    self.extra.append(str(ProcessWrapper(proc)))
                     except:
-                        self.logger.exception('Error running cbinterface command: {}'.format(command))
+                        self.logger.exception('Error searching CarbonBlack data: {}'.format(command))
+
 
                 # Search for each MD5.
                 for md5 in md5s:
 
-                    command = 'cbinterface -e {} query --no-warnings \'{} {} {} {} md5:{}\' -s \'{}\''.format(company, ignore_these_process_names_string, ignore_these_process_md5s_string, ignore_these_computers_string, ignore_these_users_string, md5, cbi_time_string)
-                    self.logger.debug(command)
+                    query = '{} {} {} {} md5:{}'.format(ignore_these_process_names_string, ignore_these_process_md5s_string, ignore_these_computers_string, ignore_these_users_string, md5)
+
                     try:
-                        output = subprocess.check_output(command, shell=True).decode('utf-8')
+                        processes = cb.select(Process).where(query).group_by('id').min_last_server_update(cbi_time_string.replace(' ','T')+'Z')
+                        self.logger.info("Searching Carbon Black data for MD5s with: {}".format(query))
 
-                        # If there was output, it means the search returned something.
-                        if output:
-
-                            # Loop over each of the lines to try and find the GUI Link line.
-                            for line in output.splitlines():
-
-                                if 'GUI Link: ' in line:
-                                    gui_link = line.replace('GUI Link: ', '').strip()
-                                    self.detections.append('! DETECTED MD5 {} ! {}'.format(md5, gui_link))
+                        if processes:
+                            if len(processes) > 500:
+                                self.logger.warning("{} processes returned by Carbon Black for '{}' since '{}'".format(len(processes), query, cbi_time_string))
+                                self.detections.append('! DETECTED {} PROCESSSES THAT MADE WITH MD5 {} ! -- TOO LARGE of dataset to display, only including first 100 results in extra detections.'.format(len(processes), md5))
+                                self.tags.append('incidents')
+                                self.tags.append('exploitation')
+                                for proc in processes[:100]:
+                                    proc_summary = "Hostname:{} User:{} Process_Name:{} Command_Line:{} GUI_Link:{}".format(proc.hostname,
+                                                                                                                            proc.username,
+                                                                                                                            proc.process_name,
+                                                                                                                            proc.cmdline,
+                                                                                                                            proc.webui_link)
+                                    self.extra.append(proc_summary)
+                            else:
+                                for proc in processes:
+                                    self.detections.append('! DETECTED MD5 {} ! {}'.format(md5, proc.webui_link))
                                     self.tags.append('incidents')
                                     self.tags.append('exploitation')
-                                    self.extra.append(output)
+                                    # just using the convienient display of ProcessWrapper
+                                    self.extra.append(str(ProcessWrapper(proc)))
                     except:
-                        self.logger.exception('Error running cbinterface command: {}'.format(command))
+                        self.logger.exception('Error searching CarbonBlack data: {}'.format(query))
+
