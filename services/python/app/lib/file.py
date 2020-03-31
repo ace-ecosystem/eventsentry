@@ -3,6 +3,7 @@ import magic
 import os
 import re
 
+valid_sandbox_paths = ['cuckoo', 'vxstream', 'wildfire', 'falcon']
 
 class File():
     def __init__(self, path):
@@ -100,7 +101,7 @@ class File():
     def is_cuckoo(self):
         """ Determines if the file is a valid Cuckoo report. """
 
-        valid_sandbox_paths = ['cuckoo', 'vxstream', 'wildfire']
+        #valid_sandbox_paths = ['cuckoo', 'vxstream', 'wildfire']
 
         if self.path.endswith('.json') and any(sandbox.lower() in self.path.lower() for sandbox in valid_sandbox_paths):
             if all(self.path.lower().rfind('cuckoo') >= self.path.lower().rfind(sandbox) for sandbox in valid_sandbox_paths):
@@ -111,18 +112,21 @@ class File():
     def is_vxstream(self):
         """ Determines if the file is a valid VxStream report. """
 
-        valid_sandbox_paths = ['cuckoo', 'vxstream', 'wildfire']
+        #valid_sandbox_paths = ['cuckoo', 'vxstream', 'wildfire']
 
         if self.path.endswith('.json') and any(sandbox.lower() in self.path.lower() for sandbox in valid_sandbox_paths):
             if all(self.path.lower().rfind('vxstream') >= self.path.lower().rfind(sandbox) for sandbox in valid_sandbox_paths):
                 return True
+            elif all(self.path.lower().rfind('falcon') >= self.path.lower().rfind(sandbox) for sandbox in valid_sandbox_paths):
+                return True
         else:
             return False
+
 
     def is_wildfire(self):
         """ Determines if the file is a valid Wildfire report. """
 
-        valid_sandbox_paths = ['cuckoo', 'vxstream', 'wildfire']
+        #valid_sandbox_paths = ['cuckoo', 'vxstream', 'wildfire']
 
         if self.path.endswith('.json') and any(sandbox.lower() in self.path.lower() for sandbox in valid_sandbox_paths):
             # Ignore some extra files the Wildfire command generates.
