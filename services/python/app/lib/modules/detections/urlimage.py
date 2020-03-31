@@ -23,6 +23,11 @@ class Module(DetectionModule):
         # Download and hash any URL with any of these in them.
         image_extensions = self.config['image_extensions']
 
+        # Stupid hack for 1000 Talents events with tons of images.
+        skip_these = ['1000 talents', '1000_talents']
+        if any(skip in self.event_json['name'].lower() for skip in skip_these) or any(skip in self.event_json['tags'] for skip in skip_these):
+            return
+
         # Loop over the unique URLs to download and hash any images.
         for url in set([i['value'] for i in self.event_json['indicators'] if i['type'] == 'URI - URL']):
             # Stupid hack for WeTransfer emails that have hundreds of images.
