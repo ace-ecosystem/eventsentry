@@ -11,6 +11,6 @@ python-magic
 pytz
 requests
 sipwhitelist
-tld
 tzlocal
 urlfinderlib
+falcon-sandbox
