@@ -30,6 +30,9 @@ class ACEAlert:
         except:
             self.company_name = 'legacy'
 
+        # Get all detection points
+        self.detections = self.get_all_detection_points()
+
         # Load the URL from the config file.
         self.url = config['ace']['ace_alert_url'] + self.name
 
@@ -163,6 +166,7 @@ class ACEAlert:
         json['url'] = self.url
         json['urls'] = self.urls
         json['user_analysis'] = self.user_analysis
+        json['detections'] = self.detections
 
         return json
 
@@ -213,3 +217,19 @@ class ACEAlert:
                 # problem happened and an empty report was written
                 self.logger.error("EMPTY FALCON REPORT INDICATES 'falcon-sandbox' had a problem. Deleteing {}".format(output_path))
                 os.remove(output_path)
+
+    def get_all_detection_points(self):
+        # root level detections
+        detections = self.ace_json.get('detections', [])
+
+        #observable store detections
+        for _okey, o in self.ace_json['observable_store'].items():
+            detections.extend(o['detections'])
+
+            #analysis detections
+            for a_module, results in o['analysis'].items():
+                if not results:
+                    continue
+                detections.extend(results['detections'])
+
+        return detections

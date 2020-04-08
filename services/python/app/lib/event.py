@@ -227,6 +227,36 @@ class Event():
             # Save the screenshots to the event JSON.
             self.json['ace_screenshots'] = sorted(unique_screenshots)
 
+
+            # Generate the ACE Alert detection summary dictionary
+            ace_detections = {}
+            for ace_alert in ace_alerts:
+                # ace_alert.name == alert uuid
+                ace_detections[ace_alert.name] = {}
+                ace_detections[ace_alert.name]['alert_description'] = ace_alert.description
+                ace_detections[ace_alert.name]['url'] = ace_alert.url
+                ace_detections[ace_alert.name]['detections'] = ace_alert.detections
+
+            self.json['ace_detections'] = ace_detections
+
+            '''
+            # best effort save all of the unique ace detections accross all of the ace alerts
+            all_ace_detection_descriptions = []
+            for ace_alert in ace_alerts:
+                for detection in ace_alert.detections:
+                    if detection['description'] not in all_ace_detection_descriptions:
+                        all_ace_detection_descriptions.append(detection['description'])
+
+            total_ace_detections = len(all_ace_detection_descriptions)
+            if total_ace_detections < 3:
+                self.logger.warning('LOW ACE DETECTIONS: only {} detections for event="{}"'.format(total_ace_detections, self.ace_event['name']))
+            else:
+                self.logger.info('Counted {} unique ACE detections accross all ACE alerts in event.'.format(total_ace_detections))
+
+            self.json['total_ace_detections'] = len(all_ace_detection_descriptions)
+            self.json['ace_detections'] = sorted(all_ace_detection_descriptions)
+            '''
+
             # Parse the emails and make their indicators.
             emails = self.parse_emails(whitelist)
             self.json['emails'] = [email.json for email in emails if email.received_time and email.message_id]

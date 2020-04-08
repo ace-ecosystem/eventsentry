@@ -154,6 +154,20 @@
     </ac:rich-text-body>
 </ac:structured-macro>
 
+<ac:structured-macro ac:macro-id="alert_detections" ac:name="section" ac:schema-version="1">
+    <ac:parameter ac:name="border">true</ac:parameter>
+    <ac:rich-text-body>
+        <h3>Alert Detections</h3>
+    </ac:rich-text-body>
+</ac:structured-macro>
+
+<ac:structured-macro ac:macro-id="alert_detection_breakdown" ac:name="expand" ac:schema-version="1">
+    <ac:parameter ac:name="border">true</ac:parameter>
+    <ac:rich-text-body>
+        <h4>Detection Breakdown</h4>
+    </ac:rich-text-body>
+</ac:structured-macro>
+
 <ac:structured-macro ac:macro-id="sip_analysis" ac:name="section" ac:schema-version="1">
     <ac:parameter ac:name="border">true</ac:parameter>
     <ac:rich-text-body>

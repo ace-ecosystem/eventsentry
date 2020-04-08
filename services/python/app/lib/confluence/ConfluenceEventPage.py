@@ -245,6 +245,12 @@ class ConfluenceEventPage(BaseConfluencePage):
         except:
             self.logger.exception('Unable to update the Alerts section.')
 
+        # Alert Detections
+        try:
+            self.update_alert_detections(event_json['ace_detections'])
+        except:
+            self.logger.exception('Unable to update the Alert Detections section.')
+
         # SIP Analysis
         try:
             self.update_sip_analysis(event_json['indicators'])
@@ -785,9 +791,78 @@ class ConfluenceEventPage(BaseConfluencePage):
             td.string = alert['type']
 
             td = self.new_tag('td', parent=tr)
-            td.string = alert['company_name'].title()
+            td.string = 'UNKNOWN'
+            if alert['company_name']:
+                td.string = alert['company_name'].title()
+
+        detection_div = self.new_tag('div', parent=div)
 
         self.update_section(div, old_section_id='alerts')
+
+    def update_alert_detections(self, detections):
+        self.logger.debug('Updating Alert Detections section.')
+
+        div = self.new_tag('div')
+
+        # Make the section header.
+        header = self.new_tag('h3', parent=div)
+        header.string = 'Alert Detections'
+
+        # Make alert detection summary.
+        ace_uuids = detections.keys()
+        unique_detections = []
+        for _key, ace_detections in detections.items():
+            for d in ace_detections['detections']:
+                if d['description'] not in unique_detections:
+                    unique_detections.append(d['description'])
+
+        total_unique_detection = len(unique_detections)
+        detection_summary = "Approximately {} unique detection(s) accross {} ACE alert(s).\n".format(total_unique_detection, len(ace_uuids))
+
+        # Warn if detections are low
+        if total_unique_detection < 3:
+            warn_div = self.new_tag('div', parent=div)
+            warn_div['class'] = "confluence-information-macro confluence-information-macro-warning conf-macro output-block"
+            warn_div['data-hasbody'] = "true"
+            warn_div['data-macro-name'] = "warning"
+            span = self.new_tag('span', parent=warn_div)
+            span['class'] = "aui-icon aui-icon-small aui-iconfont-error confluence-information-macro-icon"
+            span.string = "::before"
+            body_div = self.new_tag('div', parent=warn_div)
+            body_div['class'] = "confluence-information-macro-body"
+            pw = self.new_tag('p', parent=body_div)
+            strong = self.new_tag('strong', parent=pw)
+            strong.string = " WARNING: " + detection_summary
+        else:
+            ds_div = self.new_tag('div', parent=div)
+            code = self.new_tag('code', parent=ds_div)
+            code.string = detection_summary
+
+        self.update_section(div, old_section_id='alert_detections')
+
+        try:
+            # Create the parent div tag.
+            div = self.new_tag('div')
+
+            # Make the section header.
+            hp = self.new_tag('p', parent=div)
+            strong_hp = self.new_tag('strong', parent=hp)
+            strong_hp.string = 'Alert Detection Breakdown'
+
+            # Make the pre tag to hold the detections.
+            pre = self.new_tag('pre', parent=div)
+            pre['style'] = 'border:1px solid gray;padding:5px;'
+            pre.string = ''
+            for _key, ace_detection in detections.items():
+                pre.string += '\n{}'.format(ace_detection['alert_description'])
+                pre.string += "\n\t"+u'\u21B3' + " URL: {}".format(ace_detection['url'])
+                pre.string += "\n\t"+u'\u21B3' + " Detections:"
+                for dd in ace_detection['detections']:
+                    pre.string += "\n\t\t"+u'\u21B3'+" {}".format(dd['description'])
+
+            self.update_section(div, old_section_id='alert_detection_breakdown')
+        except Exception as e:
+            self.logger.error("Failed to update alert_detection_breakdown section: {}".format(e))
 
     def update_sip_analysis(self, indicator_json):
         self.logger.debug('Updating SIP Analysis section.')
