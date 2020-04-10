@@ -828,7 +828,7 @@ class ConfluenceEventPage(BaseConfluencePage):
                     unique_detections.append(d['description'])
 
         total_unique_detection = len(unique_detections)
-        detection_summary = "Approximately {} unique detection(s) accross {} ACE alert(s).\n".format(total_unique_detection, len(ace_uuids))
+        detection_summary = "{} unique detection(s) accross {} ACE alert(s).\n".format(total_unique_detection, len(ace_uuids))
 
         # Format the summary based on our count of unique detections,
         #  and warn if detections are low
@@ -845,7 +845,7 @@ class ConfluenceEventPage(BaseConfluencePage):
             body_div['class'] = "confluence-information-macro-body"
             pw = self.new_tag('p', parent=body_div)
             strong = self.new_tag('strong', parent=pw)
-            strong.string = " WARNING: " + detection_summary
+            strong.string = " WARNING: Only " + detection_summary
             # Also, tag the wiki page
             low_detection_tag = config['ace']['detections'].get('low_detection_wiki_tag', None)
             if low_detection_tag and low_detection_tag not in self.get_labels():
