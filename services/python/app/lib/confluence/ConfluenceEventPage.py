@@ -808,19 +808,32 @@ class ConfluenceEventPage(BaseConfluencePage):
         header = self.new_tag('h3', parent=div)
         header.string = 'Alert Detections'
 
+        # Detection descriptions to consider seconday
+        secondary_detections = config['ace']['detections'].get('ignore_these_detections', [])
+
         # Make alert detection summary.
         ace_uuids = detections.keys()
         unique_detections = []
         for _key, ace_detections in detections.items():
             for d in ace_detections['detections']:
+                if d['ignore_detection']:
+                    self.logger.debug("Configured to ignore this detection: {}".format(d['description']))
+                    d['description'] += " (IGNORED)"
+                    continue
+                if any(sd in d['description'] for sd in secondary_detections):
+                    self.logger.debug("Considering '{}' a secondary detection to ignore.".format(d['description']))
+                    d['description'] += " (SECONDARY)"
+                    continue
                 if d['description'] not in unique_detections:
                     unique_detections.append(d['description'])
 
         total_unique_detection = len(unique_detections)
         detection_summary = "Approximately {} unique detection(s) accross {} ACE alert(s).\n".format(total_unique_detection, len(ace_uuids))
 
-        # Warn if detections are low
-        if total_unique_detection < 3:
+        # Format the summary based on our count of unique detections,
+        #  and warn if detections are low
+        minimum_unique_detections_required = config['ace']['detections'].get('minimum_unique_detections')
+        if total_unique_detection < minimum_unique_detections_required:
             warn_div = self.new_tag('div', parent=div)
             warn_div['class'] = "confluence-information-macro confluence-information-macro-warning conf-macro output-block"
             warn_div['data-hasbody'] = "true"
@@ -833,6 +846,11 @@ class ConfluenceEventPage(BaseConfluencePage):
             pw = self.new_tag('p', parent=body_div)
             strong = self.new_tag('strong', parent=pw)
             strong.string = " WARNING: " + detection_summary
+            # Also, tag the wiki page
+            low_detection_tag = config['ace']['detections'].get('low_detection_wiki_tag', None)
+            if low_detection_tag and low_detection_tag not in self.get_labels():
+                self.logger.debug('Adding label to wiki: {}'.format(low_detection_tag))
+                self.add_page_label(low_detection_tag)
         else:
             ds_div = self.new_tag('div', parent=div)
             code = self.new_tag('code', parent=ds_div)
@@ -841,6 +859,9 @@ class ConfluenceEventPage(BaseConfluencePage):
         self.update_section(div, old_section_id='alert_detections')
 
         try:
+            # Summarize identical detection descriptions?
+            summarize_repeats = config['ace']['detections'].get('summarize_repeated_detections', False)
+
             # Create the parent div tag.
             div = self.new_tag('div')
 
@@ -853,12 +874,33 @@ class ConfluenceEventPage(BaseConfluencePage):
             pre = self.new_tag('pre', parent=div)
             pre['style'] = 'border:1px solid gray;padding:5px;'
             pre.string = ''
+
+            # List what we think are unique detections:
+            pre.string += '\nDetections counted as unique:'
+            for detection in unique_detections:
+                pre.string += "\n\t"+u'\u21B3' + " {}".format(detection)
+            pre.string += '\n'
+
+            # Format the detection breakdown
             for _key, ace_detection in detections.items():
                 pre.string += '\n{}'.format(ace_detection['alert_description'])
                 pre.string += "\n\t"+u'\u21B3' + " URL: {}".format(ace_detection['url'])
                 pre.string += "\n\t"+u'\u21B3' + " Detections:"
+                repeated_detections = {}
                 for dd in ace_detection['detections']:
-                    pre.string += "\n\t\t"+u'\u21B3'+" {}".format(dd['description'])
+                    if not summarize_repeats:
+                         pre.string += "\n\t\t"+u'\u21B3'+" {}".format(dd['description'])
+                         continue
+                    if dd['description'] not in repeated_detections.keys():
+                        repeated_detections[dd['description']] = 1
+                    else:
+                        repeated_detections[dd['description']] += 1
+                if summarize_repeats:
+                    for detection, count in repeated_detections.items():
+                        if count > 1:
+                            pre.string += "\n\t\t"+u'\u21B3'+" {} (REPEATED {} TIMES)".format(detection, count)
+                        else:
+                            pre.string += "\n\t\t"+u'\u21B3'+" {}".format(detection)
 
             self.update_section(div, old_section_id='alert_detection_breakdown')
         except Exception as e:

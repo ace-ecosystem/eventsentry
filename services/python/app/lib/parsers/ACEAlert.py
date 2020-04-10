@@ -219,8 +219,23 @@ class ACEAlert:
                 os.remove(output_path)
 
     def get_all_detection_points(self):
+        """ Parse out all detections we can find from the ACE alerts json and
+            perform special logic based on the configuration.
+        """
+        # Is this an alert we should verbosly ignore detections for?
+        ignore_detections = False
+        verbosely_ignore_detections_for = config['ace']['detections'].get('verbosely_ignore_detections_for', [])
+        if any(ignore_descrip_str in self.description for ignore_descrip_str in verbosely_ignore_detections_for):
+            ignore_detections = True
+
         # root level detections
         detections = self.ace_json.get('detections', [])
+
+        # should we consider the alert itself a detection?
+        not_detection_tools = config['ace']['detections'].get('not_detection_tools', [])
+        if not any(self.tool.startswith(dt) for dt in not_detection_tools):
+            detections.append({ 'description': self.description,
+                                'details': "EVENT SENTRY" })
 
         #observable store detections
         for _okey, o in self.ace_json['observable_store'].items():
@@ -231,5 +246,9 @@ class ACEAlert:
                 if not results:
                     continue
                 detections.extend(results['detections'])
+
+        # Finally, supply the ignore_detection flag on every detection
+        for detection in detections:
+            detection['ignore_detection'] = ignore_detections
 
         return detections
