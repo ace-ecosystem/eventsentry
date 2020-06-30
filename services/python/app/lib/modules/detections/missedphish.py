@@ -73,6 +73,10 @@ class Module(DetectionModule):
                     sender = sender_subject[0]
                     subject = sender_subject[1]
 
+                    if not sender or not subject:
+                        logging.error("Not searching for missed phish because sender and subject are NULL.")
+                        continue
+
                     # Store the Splunk output lines.
                     output_lines = []
 
