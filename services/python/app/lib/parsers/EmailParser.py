@@ -298,7 +298,7 @@ class EmailParser():
         self.urls = [u for u in unique_urls if is_valid(u)]
 
         # Make indicators for the URLs.
-        self.indicators += make_url_indicators(self.urls)
+        self.indicators += make_url_indicators(self.urls, from_email_content=True)
 
         # Get rid of any invalid indicators.
         self.indicators = [i for i in self.indicators if i.value]

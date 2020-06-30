@@ -202,6 +202,9 @@ class EventWhitelist(SIPWhitelist):
                 return False
             elif indicator['type'] == 'Email Message ID':
                 return False
+            elif indicator['type'] == 'Email - Content - Domain Name':
+                # If the domain is whitelisted, do not consider it good for 'Email - Content - Domain Name'
+                return self.is_domain_whitelisted(indicator['value'])
             elif indicator['type'] == 'Hash - MD5':
                 return self.is_md5_whitelisted(indicator['value'])
             elif indicator['type'] == 'Hash - SHA1':

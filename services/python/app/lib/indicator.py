@@ -83,7 +83,7 @@ def merge_indicators(indicators):
 
     return merged
 
-def make_url_indicators(urls, tags=[]):
+def make_url_indicators(urls, tags=[], from_email_content=False):
     """ Make indicators from a list of URLs. """
     logger = logging.getLogger(__name__)
 
@@ -143,11 +143,15 @@ def make_url_indicators(urls, tags=[]):
                     indicators.append(Indicator('Address - ipv4-addr', netloc, status=status, tags=tags+['ip_in_url'], relationships=[u]))
                 except ValueError:
                     indicators.append(Indicator('URI - Domain Name', netloc, status=status, tags=tags+['domain_in_url'], relationships=[u]))
+                    if from_email_content:
+                        indicators.append(Indicator('Email - Content - Domain Name', netloc, status=status, tags=tags+['domain_in_url'], relationships=[u]))
 
                 # TLD
                 tld = get_fld('http://{}'.format(netloc), fail_silently=True)
                 if tld:
                     indicators.append(Indicator('URI - Domain Name', tld, status=status, tags=tags, relationships=[u]))
+                    if from_email_content:
+                        indicators.append(Indicator('Email - Content - Domain Name', tld, status=status, tags=tags, relationships=[u]))
 
                 # Full URL
                 indicators.append(Indicator('URI - URL', u, tags=tags))
