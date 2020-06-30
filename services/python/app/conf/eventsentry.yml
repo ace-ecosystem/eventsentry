@@ -86,6 +86,9 @@ ace:
       - "was tagged with suspect"
       - "was tagged with apt:"
       - "was tagged with suspicious"
+      - "was tagged with executive"
+      - "was tagged with treasury"
+      - "matched yara rule phishme_reporter"
         # Dynamic SIP_* yara rules for SIP indicators.
       - "matched yara rule SIP_"
 

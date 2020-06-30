@@ -224,8 +224,11 @@ class ACEAlert:
         """
         # Is this an alert we should verbosly ignore detections for?
         ignore_detections = False
-        verbosely_ignore_detections_for = config['ace']['detections'].get('verbosely_ignore_detections_for', [])
-        if any(ignore_descrip_str in self.description for ignore_descrip_str in verbosely_ignore_detections_for):
+        verbosely_ignore_descriptions = config['ace']['detections']['verbosely_ignore_detections_for'].get('descriptions', [])
+        if any(ignore_descrip_str in self.description for ignore_descrip_str in verbosely_ignore_descriptions):
+            ignore_detections = True
+        verbosely_ignore_tools = config['ace']['detections']['verbosely_ignore_detections_for'].get('tools', [])
+        if any(self.tool.startswith(ignore_tool) for ignore_tool in verbosely_ignore_tools):
             ignore_detections = True
 
         # root level detections
