@@ -153,6 +153,11 @@ def make_url_indicators(urls, tags=[], from_email_content=False):
                     if from_email_content:
                         indicators.append(Indicator('Email - Content - Domain Name', tld, status=status, tags=tags, relationships=[u]))
 
+                # XXX hack for noisy sharepoint URLs.
+                if netloc.endswith('sharepoint.com') and '_layouts' in parsed_url.path:
+                    logger.info("skipping noisy sharepoint URL: {}".format(u))
+                    continue
+
                 # Full URL
                 indicators.append(Indicator('URI - URL', u, tags=tags))
 
