@@ -576,6 +576,9 @@ modules:
     lokibot:
       enabled: True
 
+    qealler:
+      enabled: True
+
     missedphish:
       enabled: False
 

@@ -28,6 +28,7 @@ class VxstreamParser(BaseSandboxParser):
         self.sha256 = self.parse(self.report, 'analysis', 'general', 'digests', 'sha256')
         self.sha512 = self.parse(self.report, 'analysis', 'general', 'digests', 'sha512')
         self.sample_id = str(self.parse(self.report, 'analysis', 'general', 'controller', 'environmentid'))
+        self.suricata_alerts = self.parse(self.report, 'analysis', 'runtime', 'network', 'suricata_alerts', 'alert')
 
         # The rest of the info requires a bit more parsing.
         self.sandbox_urls = self.parse_sandbox_url()

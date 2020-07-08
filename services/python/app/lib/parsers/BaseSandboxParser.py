@@ -59,6 +59,7 @@ class BaseSandboxParser():
         self.ssdeep = ''
         self.started_services = []
         self.strings_urls = []
+        self.suricata_alerts = []
 
         # Load the report's JSON.
         if json_path:
@@ -101,6 +102,7 @@ class BaseSandboxParser():
         json['ssdeep'] = self.ssdeep
         json['started_services'] = self.started_services
         json['strings_urls'] = self.strings_urls
+        json['suricata_alerts'] = self.suricata_alerts
 
         return json
 
@@ -241,6 +243,11 @@ def dedup_reports(report_list, whitelist):
 
                 # For now we consider ALL contacted hosts to be benign, so no need to check the whitelist.
                 dedup_report.indicators.append(Indicator('Address - ipv4-addr', host['ipv4'], status='Informational', tags=tags))
+
+        # Suricata
+        for suricata_alert in report.suricata_alerts:
+            if suricata_alert not in dedup_report.suricata_alerts:
+                dedup_report.suricata_alerts.append(suricata_alert)
 
         # Dedup the dropped files.
         for file in report.dropped_files:
