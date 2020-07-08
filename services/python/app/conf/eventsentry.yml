@@ -640,6 +640,7 @@ modules:
         - zipmail.com.br
         - zoho.com
         - zoho.eu
+        - dropbox.com
 
       # List of wiki page tags that, if present, will skip over this detection module
       ignore_tags:
