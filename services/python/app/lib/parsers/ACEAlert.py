@@ -48,9 +48,11 @@ class ACEAlert:
         self.user_analysis = []
         for file in user_analysis_files:
             if os.path.exists(os.path.join(self.alert_dir, '.ace', file)):
+                self.logger.info("processing EmailAddressAnalysis for user data...")
                 with open(os.path.join(self.alert_dir, '.ace', file), encoding='utf8') as j:
-                    json_data = json.load(j)
+                    user_analysis_data = json.load(j)
 
+                for json_data in user_analysis_data:
                     user = {'cn': '',
                             'displayName': '',
                             'mail': '',
@@ -60,29 +62,34 @@ class ACEAlert:
                             'company': '',
                             'distinguishedName': ''}
 
-                    try: user['cn'] = json_data['cn']
-                    except: pass
+                    if 'attributes' not in json_data:
+                        continue
 
-                    try: user['displayName'] = json_data['displayName']
-                    except: pass
+                    user_data = json_data['attributes']
 
-                    try: user['mail'] = json_data['mail']
-                    except: pass
+                    try: user['cn'] = user_data['cn']
+                    except KeyError: pass
 
-                    try: user['title'] = json_data['title']
-                    except: pass
+                    try: user['displayName'] = user_data['displayName']
+                    except KeyError: pass
 
-                    try: user['description'] = ' | '.join(json_data['description'])
-                    except: pass
+                    try: user['mail'] = user_data['mail']
+                    except KeyError: pass
 
-                    try: user['department'] = json_data['department']
-                    except: pass
+                    try: user['title'] = user_data['title']
+                    except KeyError: pass
 
-                    try: user['company'] = json_data['company']
-                    except: pass
+                    try: user['description'] = ' | '.join(user_data['description'])
+                    except KeyError: pass
 
-                    try: user['distinguishedName'] = json_data['distinguishedName']
-                    except: pass
+                    try: user['department'] = user_data['department']
+                    except KeyError: pass
+
+                    try: user['company'] = user_data['company']
+                    except KeyError: pass
+
+                    try: user['distinguishedName'] = user_data['distinguishedName']
+                    except KeyError: pass
 
                     self.user_analysis.append(user)
 
