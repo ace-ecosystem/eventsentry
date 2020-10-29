@@ -153,6 +153,9 @@ class ACEAlert:
         # Falcon Reports
         #
         """
+        # if 1000 talents, skip this step?
+        # OR TODO: Create ES config file in local event dir with
+        # an option to skip sandboxing
         self.download_full_falcon_reports()
 
     @property
@@ -206,8 +209,10 @@ class ACEAlert:
                     job_ids.append(falcon_json['submission_result']['job_id'])
         return list(set(job_ids))
 
-    def download_full_falcon_reports(self):
+    def download_full_falcon_reports(self, skip=False):
         event_dir = os.path.dirname(self.alert_dir)
+        if skip:
+            return
         for job_id in self.get_all_falcon_sandbox_jobs():
             proxy = config['network']['proxy']
             output_path = os.path.join(event_dir, job_id+'.falcon.json')

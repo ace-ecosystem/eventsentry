@@ -18,7 +18,7 @@ class Module(DetectionModule):
         super().__init__(name=name, event_json=event_json)
 
     def run(self):
-        self.logger.debug('Running the {} detection module'.format(self.name))
+        self.logger.info('Running the {} detection module'.format(self.name))
 
         # Stupid hack for 1000 Talents events with tons of URLs.
         skip_these = ['1000 talents', '1000_talents']
@@ -67,6 +67,15 @@ class Module(DetectionModule):
             cb_whitelisted_things_string = ''
             splunk_whitelisted_things_string = ''
 
+        # NOTE How did cb queries end up in this file instead of cbinterface? FIX XXX
+        '''
+        ignore_these_hosts = self.config['ignore_these_computers']
+        if ignore_these_hosts:
+            cb_whitelisted_things_string = '-hostname:' + ' -hostname:'.join(ignore_these_hosts)
+        else:
+            cb_whitelisted_things_string = ''
+        '''
+
         ignored_source_ips = self.config['ignored_source_ips']
         if ignored_source_ips:
             ignored_source_ips_string = ' OR '.join(ignored_source_ips)
@@ -94,7 +103,8 @@ class Module(DetectionModule):
         if len(start_time) == 19:
 
             # Bump the start time back an extra hour to help make sure we have better coverage.
-            earlier_start_time = datetime.datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S') - datetime.timedelta(hours=1)
+            # XXX Temporary hack.. I noticed our alert and email tims are in UTC but our splunk logs are in EST. ~ going back 5 hrs
+            earlier_start_time = datetime.datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S') - datetime.timedelta(hours=5)
             earlier_start_time = earlier_start_time.strftime('%Y-%m-%d %H:%M:%S')
             start_time = earlier_start_time
 

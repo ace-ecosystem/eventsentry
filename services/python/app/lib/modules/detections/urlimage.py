@@ -12,7 +12,7 @@ class Module(DetectionModule):
         super().__init__(name=name, event_json=event_json)
 
     def run(self):
-        self.logger.debug('Running the {} detection module'.format(self.name))
+        self.logger.info('Running the {} detection module'.format(self.name))
 
         # Use this user-agent when downloading the images.
         user_agent = self.config['user_agent']
@@ -33,6 +33,7 @@ class Module(DetectionModule):
             # Stupid hack for WeTransfer emails that have hundreds of images.
             if not 'wetransfer.net' in url and not 'wetransfer.com' in url:
                 if any(ext.lower() in url.lower() for ext in image_extensions):
+                    self.logger.debug('attempting to download image: {}'.format(url))
                     try:
                         temp = tempfile.NamedTemporaryFile()
                         command = '{} wget -O {} -U {} -T {} -t {} {}'.format(PROXYCHAINS, temp.name, shlex.quote(user_agent), 5, 1, shlex.quote(url))

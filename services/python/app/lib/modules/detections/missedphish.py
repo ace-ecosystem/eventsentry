@@ -32,6 +32,9 @@ class Module(DetectionModule):
             received_time = received_time.replace(hour=0, minute=0, second=0, microsecond=0)
             end_time = received_time.replace(hour=23, minute=59, second=59, microsecond=0)
             start_time = received_time.strftime('%Y-%m-%d %H:%M:%S')
+        except IndexError:
+            self.logger.error("Caught IndexError trying to access self.event_json['emails'][-1]['received_time'][0:19]")
+            start_time = None
         except:
             self.logger.exception('Error making start time and end time.')
             start_time = None

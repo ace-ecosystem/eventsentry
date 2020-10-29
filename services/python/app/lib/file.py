@@ -187,6 +187,7 @@ class File():
         if os.path.basename(self.path).endswith('.png'):
             try:
                 if magic.from_file(self.path, mime=True) == 'image/png':
+                    self.logger.debug("Found a suspected screenshot PNG file: {}".format(self.path))
                     return True
             except:
                 pass

@@ -118,8 +118,11 @@ class EmailParser():
                 part_text = str(part).splitlines()
                 if any('Received:' in line for line in part_text):
                     # Make sure our part starts with the Received: headers.
-                    while not part_text[0].startswith('Received:'):
-                        part_text.pop(0)
+                    try:
+                        while not part_text[0].startswith('Received:'):
+                            part_text.pop(0)
+                    except IndexError:
+                        pass
                     part_text = '\n'.join(part_text)
 
                     # Make the new e-mail object.
