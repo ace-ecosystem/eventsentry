@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+cd /opt/eventsentry && docker-compose stop -t 1
