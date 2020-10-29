@@ -12,5 +12,5 @@ pytz
 requests
 sipwhitelist
 tzlocal
-urlfinderlib
+urlfinderlib==0.11.12
 falcon-sandbox
