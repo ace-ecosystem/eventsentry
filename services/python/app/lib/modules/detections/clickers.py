@@ -89,12 +89,22 @@ class Module(DetectionModule):
 
         # Get all of the Dropbox/Google Drive/etc URI paths from the event.
         extra_domains = ['dropbox.com', 'www.dropbox.com', 'drive.google.com', 'gitlab.com', 'www.gitlab.com']
+        content_protecting_domains = list(set([i['value'] for i in good_indicators if i['type'] == 'Email - Content - Domain Name' and i['status'] != 'Deprecated']))
+        extra_domains.extend(content_protecting_domains)
+        extra_domains = list(set(extra_domains))
+
+        self.logger.info(f"extra domains: {extra_domains}")
+
         uri_paths = list(set([i['value'].lower() for i in good_indicators if i['type'] == 'URI - Path' and any(rel in extra_domains for rel in i['relationships'])]))
+        all_url_list = list(set([i['value'].lower() for i in good_indicators if i['type'] == 'URI - URL']))
+        url_list = list(set([url for url in all_url_list if any(domain in url for domain in extra_domains)]))
+
+        self.logger.info(f"URL List: {url_list}")
 
         # Collect all of the domains/IPs/paths we want to search for in Splunk.
-        domains_ips_paths = list(set(domains + ips + uri_paths))
-        domains_ips_paths_for_splunk = ['"'+indicator+'"' for indicator in domains_ips_paths]
-        if domains_ips_paths:
+        domains_ips_paths_urls = list(set(domains + ips + uri_paths + url_list))
+        domains_ips_paths_for_splunk = ['"'+indicator+'"' for indicator in domains_ips_paths_urls]
+        if domains_ips_paths_urls:
             domains_ips_paths_string = ' OR '.join(domains_ips_paths_for_splunk)
         else:
             return
@@ -160,6 +170,50 @@ class Module(DetectionModule):
                                         user_id = user_id[user_id.rfind('\\')+1:]
                                     clicker_ids.append(user_id)
                                     self.detections.append('! DETECTED NETCONN {} TO DOMAIN {} FROM {} ! {}'.format(user_id, domain, proc.hostname, proc.webui_link))
+                                    if proc.hostname not in computer_user_map:
+                                        computer_user_map[proc.hostname] = []
+                                    if user_id not in computer_user_map[proc.hostname]:
+                                        computer_user_map[proc.hostname].append(user_id)
+                                    if proc.hostname not in computer_proc_map:
+                                        computer_proc_map[proc.hostname] = {}
+                                    if proc.id not in computer_proc_map[proc.hostname].keys():
+                                        computer_proc_map[proc.hostname][proc.id] = proc
+                                    self.tags.append('incidents')
+                                    self.tags.append('exploitation')
+                                    # just using the convienient display of ProcessWrapper
+                                    self.extra.append(str(ProcessWrapper(proc)))
+                    except:
+                        self.logger.exception('Error searching CarbonBlack data: {}'.format(query))
+
+                for url in url_list:
+                    # Build and run the cb query.
+                    query = 'cmdline:"{}" {}'.format(url, cb_whitelisted_things_string)
+                    try:
+                        # min_last_server_update takes a ISO 8601 string formatted timestamp
+                        processes = cb.select(Process).where(query).group_by('id').min_last_server_update(start_time.replace(' ','T')+'Z')
+                        self.logger.info("Searching Carbon Black data for network connections by url with: {}".format(query))
+                        # If there was output, it means the search returned something.
+                        if processes:
+                            if len(processes) > 500:
+                                self.logger.warning("{} processes returned by Carbon Black for '{}' since '{}'".format(len(processes), query, start_time))
+                                self.detections.append('! DETECTED {} PROCESSSES WITH URL ON CMDLINE {} ! -- TOO LARGE of dataset to display, only including first 100 results in extra detections.'.format(len(processes), url))
+                                self.tags.append('incidents')
+                                self.tags.append('exploitation')
+                                for proc in processes[:100]:
+                                    proc_summary = "Hostname:{} User:{} Process_Name:{} Command_Line:{} GUI_Link:{}".format(proc.hostname,
+                                                                                                                            proc.username,
+                                                                                                                            proc.process_name,
+                                                                                                                            proc.cmdline,
+                                                                                                                            proc.webui_link)
+                                    self.extra.append(proc_summary)
+                            else:
+                                for proc in processes:
+                                    user_id = proc.username.lower()
+                                    if '\\' in user_id:
+                                        # such as corp\user_id
+                                        user_id = user_id[user_id.rfind('\\')+1:]
+                                    clicker_ids.append(user_id)
+                                    self.detections.append('! DETECTED CLICK by {} on URL {} FROM {} ! {}'.format(user_id, url, proc.hostname, proc.webui_link))
                                     if proc.hostname not in computer_user_map:
                                         computer_user_map[proc.hostname] = []
                                     if user_id not in computer_user_map[proc.hostname]: 
@@ -275,13 +329,19 @@ class Module(DetectionModule):
                 # Standardize the format of the output lines.
                 output_lines = [line.lower() for line in output_lines]
 
+                # Logs change and user ID extraction can fail - notify a human
+                if output_lines and not clicker_ids:
+                    self.logger.warning("got splunk output but didn't find any clicker IDs...")
+                    self.detections.append("! {} UN-IDENTIFIED DETECTION RESULTS: Expand details below to view logs...".format(len(output_lines)))
+                    self.tags.append('incidents')
+
                 # Build a computer to user map from carbonblack results
                 computer_name_re = re.compile(r'computer_name  :  (?P<computer_name>[\w]+)  ,')
                 # for grabbing process guids
                 proc_guid_re = re.compile(r'process_guid  :  (?P<process_guid>[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})  ,', re.I)
 
                 # Loop over all of the domains and IPs we searched for to identify the clickers.
-                for domain_ip_path in domains_ips_paths:
+                for domain_ip_path in domains_ips_paths_urls:
 
                     # Loop over each clicker to check if they clicked on this domain/IP.
                     for user_id in clicker_ids:
