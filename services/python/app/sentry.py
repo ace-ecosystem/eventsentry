@@ -537,8 +537,8 @@ def process_event(event, sip_campaign_names):
 
             # Close the event in ACE.
             try:
-                ace_api.update_event_status(e.json['ace_event']['id'], 'CLOSED')
-                logging.warning('Closed event in ACE: {}'.format(e.json['name']))
+                ace_api.update_event_status(e.json['ace_event']['id'], 'COMPLETED')
+                logging.warning('Completed event in ACE: {}'.format(e.json['name']))
 
                 # Update the wiki to reflect that the event was processed.
                 wiki.update_event_processed()

@@ -164,7 +164,7 @@ class ConfluenceEventPage(BaseConfluencePage):
         return [i.json for i in manual_indicators]
 
     def update_event_processed(self):
-        """ This function is called after the indicators are added to SIP and closed in ACE. """
+        """ This function is called after the indicators are added to SIP and processed in ACE. """
 
         # Reset the checkbox in the Process Event section.
         try:
@@ -174,7 +174,7 @@ class ConfluenceEventPage(BaseConfluencePage):
 
         # Reset the checkbox in the Refresh Wiki section.
         try:
-            self.update_refresh_wiki('Indicators processed into SIP and closed in ACE: ')
+            self.update_refresh_wiki('Indicators processed into SIP and ACE event set to completed: ')
         except:
             self.logger.exception('Unable to update the Refresh Wiki section.')
 
