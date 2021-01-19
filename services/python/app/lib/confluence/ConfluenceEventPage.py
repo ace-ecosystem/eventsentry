@@ -80,85 +80,122 @@ class ConfluenceEventPage(BaseConfluencePage):
             return True
 
     def read_manual_indicators(self):
-        """ This function reads any indicators specified in the Manual Indicators section. """
+        """ This function reads any indicators specified in the Manual Indicators section.
 
+        In order to associate manual indicators to the user that created them, the Confulence
+        version history is iterated from oldest to newest. Confluence versions edited by the
+        eventsentry user are skipped since only humans should be adding manual indicators.
+        When a manual indicator line shows up, it's associated to the user that
+        is responsible for the respective Confluence version.
+        """
+        self.logger.debug("processing manual indicators section...")
         manual_indicators = []
 
         # Get a list of valid indicator types we've created in SIP.
         valid_indicator_types = [t['value'] for t in self.sip.get('/indicators/type')]
 
-        # Get the visible text in the section.
+        version_history_map = self.get_page_history_version_by_user()
+        es_confluence_user = config['wiki']['confluence']['confluence_user']
+        human_user_versions = [version for version,username in version_history_map.items() if username != es_confluence_user]
+
+        counted = [] # only add the first orrurance
+        visible_text_user_map = {} # store map of username to manaul indicator text lines
         try:
-            visible_text = self.get_section('manual_indicators').find('ac:plain-text-body').findAll(text=True)[0].splitlines()
-        except:
-            visible_text = []
+            for version in human_user_versions:
+                username = version_history_map[version]
+                if username not in visible_text_user_map:
+                    visible_text_user_map[username] = []
+                section = self.get_section_by_version('manual_indicators', version)
+                if section:
+                    content = section.find('ac:plain-text-body')
+                    if content:
+                        # handle entries being removed in later versions
+                        for previous_line in counted:
+                            if previous_line not in content.findAll(text=True)[0].splitlines():
+                                # the line has been removed in this most recent version
+                                self.logger.info(f"{previous_line} removed in version {version}")
+                                for username, manual_text_lines in visible_text_user_map.items():
+                                    # find and remove it
+                                    if previous_line in manual_text_lines:
+                                        visible_text_user_map[username].remove(previous_line)
+                                # uncount it
+                                counted.remove(previous_line)
+                        # add and associate any new ones
+                        for manual_text_line in content.findAll(text=True)[0].splitlines():
+                            if manual_text_line not in counted and manual_text_line not in visible_text_user_map[username]:
+                                counted.append(manual_text_line)
+                                visible_text_user_map[username].append(manual_text_line)
+        except Exception as e:
+            self.logger.error(f"failed to iterate manual indicator section history: {e}")
 
+        self.logger.info(f"manual indicator map: {visible_text_user_map}")
         # Loop over each line in the visible text and see what indicators we can find.
-        for line in visible_text:
+        for username, visible_text in visible_text_user_map.items():
+            visible_text = list(set(visible_text))
+            for line in visible_text:
+                # Gross "fix" for the Â character that likes to appear in this section.
+                # It appears to be the bytes 0xc382... No idea...
+                # TODO: Figure out where this character keeps coming from.
+                try:
+                    line = line.encode('ascii', errors='ignore').decode('ascii', errors='ignore')
+                except:
+                    pass
 
-            # Gross "fix" for the Â character that likes to appear in this section.
-            # It appears to be the bytes 0xc382... No idea...
-            # TODO: Figure out where this character keeps coming from.
-            try:
-                line = line.encode('ascii', errors='ignore').decode('ascii', errors='ignore')
-            except:
-                pass
+                # Does this line have a comma in it? It might be a full indicator type/value/tags definition.
+                full_indicator = False
+                if ',' in line:
+                    split_line = line.split(',')
 
-            # Does this line have a comma in it? It might be a full indicator type/value/tags definition.
-            full_indicator = False
-            if ',' in line:
-                split_line = line.split(',')
+                    # The split_line needs at least 2 elements: the indicator type and value. Tags are optional.
+                    if len(split_line) >= 2:
+                        # Check if the first element is a valid SIP indicator type.
+                        if split_line[0] in valid_indicator_types:
+                            # Denote this line as full indicator so we don't reprocess it later.
+                            full_indicator = True
 
-                # The split_line needs at least 2 elements: the indicator type and value. Tags are optional.
-                if len(split_line) >= 2:
-                    # Check if the first element is a valid SIP indicator type.
-                    if split_line[0] in valid_indicator_types:
-                        # Denote this line as full indicator so we don't reprocess it later.
-                        full_indicator = True
+                            indicator_type = split_line[0]
+                            value = split_line[1].strip()
 
-                        indicator_type = split_line[0]
-                        value = split_line[1].strip()
+                            # Try to get any additional tags that were specified.
+                            try:
+                                tags = split_line[2:]
+                            except:
+                                tags = []
 
-                        # Try to get any additional tags that were specified.
-                        try:
-                            tags = split_line[2:]
-                        except:
-                            tags = []
+                            self.logger.info('Found full manual indicator: {},{},{}'.format(indicator_type, value, tags))
 
-                        self.logger.debug('Found full manual indicator: {},{},{}'.format(indicator_type, value, tags))
+                            # Make multiple indicators if the type is URI - URL.
+                            if indicator_type == 'URI - URL':
+                                manual_indicators += indicator.make_url_indicators(value, tags=tags, username=username)
+                            # Otherwise just add the indicator as-is.
+                            else:
+                                manual_indicators.append(indicator.Indicator(indicator_type, value, username=username, tags=tags))
 
-                        # Make multiple indicators if the type is URI - URL.
-                        if indicator_type == 'URI - URL':
-                            manual_indicators += indicator.make_url_indicators(value, tags=tags)
-                        # Otherwise just add the indicator as-is.
-                        else:
-                            manual_indicators.append(indicator.Indicator(indicator_type, value, tags=tags))
+                # If this line wasn't a full indicator definition, try to extract some basic indicators from it.
+                if not full_indicator:
 
-            # If this line wasn't a full indicator definition, try to extract some basic indicators from it.
-            if not full_indicator:
+                    # Check if the line is a valid URL.
+                    if is_valid(line, fix=False):
+                        manual_indicators += indicator.make_url_indicators(line, username=username)
+                        self.logger.debug('Found regular URL in manual indicators: {}'.format(line))
+                    else:
+                        # Find any domains in the line.
+                        domains = RegexHelpers.find_domains(line)
+                        for domain in domains:
+                            manual_indicators.append(indicator.Indicator('URI - Domain Name', domain, username=username))
+                            self.logger.debug('Found domain in manual indicators: {}'.format(domain))
 
-                # Check if the line is a valid URL.
-                if is_valid(line, fix=False):
-                    manual_indicators += indicator.make_url_indicators(line)
-                    self.logger.debug('Found regular URL in manual indicators: {}'.format(line))
-                else:
-                    # Find any domains in the line.
-                    domains = RegexHelpers.find_domains(line)
-                    for domain in domains:
-                        manual_indicators.append(indicator.Indicator('URI - Domain Name', domain))
-                        self.logger.debug('Found domain in manual indicators: {}'.format(domain))
+                        # Find any IP addresses in the line.
+                        ips = RegexHelpers.find_ip_addresses(line)
+                        for ip in ips:
+                            manual_indicators.append(indicator.Indicator('Address - ipv4-addr', ip, username=username))
+                            self.logger.debug('Found IP in manual indicators: {}'.format(ip))
 
-                    # Find any IP addresses in the line.
-                    ips = RegexHelpers.find_ip_addresses(line)
-                    for ip in ips:
-                        manual_indicators.append(indicator.Indicator('Address - ipv4-addr', ip))
-                        self.logger.debug('Found IP in manual indicators: {}'.format(ip))
-
-                    # Find any e-mail addresses in the line.
-                    emails = RegexHelpers.find_email_addresses(line)
-                    for email in emails:
-                        manual_indicators.append(indicator.Indicator('Email - Address', email))
-                        self.logger.debug('Found e-mail address in manual indicators: {}'.format(email))
+                        # Find any e-mail addresses in the line.
+                        emails = RegexHelpers.find_email_addresses(line)
+                        for email in emails:
+                            manual_indicators.append(indicator.Indicator('Email - Address', email, username=username))
+                            self.logger.debug('Found e-mail address in manual indicators: {}'.format(email))
 
         # Return the JSON form of the indicators.
         return [i.json for i in manual_indicators]

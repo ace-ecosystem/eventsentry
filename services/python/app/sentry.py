@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 import urllib.parse
+import json
 
 """
 #
@@ -51,6 +52,9 @@ try:
 except:
     pass
 
+# valid SIP users
+SIP_USER_LIST = []
+
 # Create a SIP connection.
 if config['intel']['sip']['enabled']:
     if config['network']['verify_requests']:
@@ -64,9 +68,9 @@ if config['intel']['sip']['enabled']:
     sip_apikey = config['intel']['sip']['sip_apikey']
     sip = Client(sip_host, sip_apikey, verify=sip_verify)
     logging.debug('Connected to SIP: {}'.format(sip_host))
+    SIP_USER_LIST = [user['username'] for user in sip.get('/api/users')]
 else:
     sip = False
-
 
 """
 #
@@ -168,7 +172,7 @@ def process_event(event, sip_campaign_names):
                                 'confidence': 'low',
                                 'impact': 'low',
                                 'type': i['type'],
-                                'username': 'eventsentry',
+                                'username': i['username'] if i['username'] in SIP_USER_LIST else 'eventsentry',
                                 'value': i['value']}
                         result = sip.post('indicators', data)
                     except ConflictError:
@@ -241,7 +245,7 @@ def process_event(event, sip_campaign_names):
                                     'impact': 'low',
                                     'tags': ['whitelist:e2w'],
                                     'type': i['type'],
-                                    'username': 'eventsentry',
+                                    'username': i['username'] if i['username'] in SIP_USER_LIST else 'eventsentry',
                                     'value': i['value']}
                             result = sip.post('indicators', data)
                         except ConflictError:
@@ -278,7 +282,7 @@ def process_event(event, sip_campaign_names):
                             # SIP throws an internal server error if there are duplicate tags at creation
                             'tags': list(set(i['tags'])),
                             'type': i['type'],
-                            'username': 'eventsentry',
+                            'username': i['username'] if i['username'] in SIP_USER_LIST else 'eventsentry',
                             'value': i['value']}
                     logging.info("Indicator data: {}".format(data))
                     result = sip.post('indicators', data)
@@ -527,7 +531,7 @@ def process_event(event, sip_campaign_names):
                             'impact': 'low',
                             'tags': tags,
                             'type': i['type'],
-                            'username': 'eventsentry',
+                            'username': i['username'] if i['username'] in SIP_USER_LIST else 'eventsentry',
                             'value': i['value']}
                     result = sip.post('indicators', data) 
                 except ConflictError:

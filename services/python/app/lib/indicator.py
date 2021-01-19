@@ -7,11 +7,14 @@ from urllib.parse import urlsplit
 from urlfinderlib import is_valid
 
 class Indicator:
-    def __init__(self, type, value, status='New', tags=[], relationships=[]):
+    def __init__(self, type, value, username="eventsentry", status='New', tags=[], relationships=[]):
         """ Represents a SIP indicator. """
 
         self.type = type
         self.value = value
+        if username == 'e2w':
+            username = 'eventsentry'
+        self.username = username
         self.status = status
         self.tags = tags
         self.relationships = relationships
@@ -42,6 +45,7 @@ class Indicator:
         json = {}
         json['type'] = self.type
         json['value'] = self.value
+        json['username'] = self.username
         json['status'] = self.status
         json['tags'] = list(set(self.tags))
         json['relationships'] = list(set(self.relationships))
@@ -83,7 +87,7 @@ def merge_indicators(indicators):
 
     return merged
 
-def make_url_indicators(urls, tags=[], from_email_content=False):
+def make_url_indicators(urls, tags=[], username='eventsentry', from_email_content=False):
     """ Make indicators from a list of URLs. """
     logger = logging.getLogger(__name__)
 
@@ -140,18 +144,18 @@ def make_url_indicators(urls, tags=[], from_email_content=False):
                 # Domain/IP
                 try:
                     ipaddress.ip_address(netloc)
-                    indicators.append(Indicator('Address - ipv4-addr', netloc, status=status, tags=tags+['ip_in_url'], relationships=[u]))
+                    indicators.append(Indicator('Address - ipv4-addr', netloc, username=username, status=status, tags=tags+['ip_in_url'], relationships=[u]))
                 except ValueError:
-                    indicators.append(Indicator('URI - Domain Name', netloc, status=status, tags=tags+['domain_in_url'], relationships=[u]))
+                    indicators.append(Indicator('URI - Domain Name', netloc, username=username, status=status, tags=tags+['domain_in_url'], relationships=[u]))
                     if from_email_content:
-                        indicators.append(Indicator('Email - Content - Domain Name', netloc, status=status, tags=tags+['domain_in_url'], relationships=[u]))
+                        indicators.append(Indicator('Email - Content - Domain Name', netloc, username=username, status=status, tags=tags+['domain_in_url'], relationships=[u]))
 
                 # TLD
                 tld = get_fld('http://{}'.format(netloc), fail_silently=True)
                 if tld:
-                    indicators.append(Indicator('URI - Domain Name', tld, status=status, tags=tags, relationships=[u]))
+                    indicators.append(Indicator('URI - Domain Name', tld, username=username, status=status, tags=tags, relationships=[u]))
                     if from_email_content:
-                        indicators.append(Indicator('Email - Content - Domain Name', tld, status=status, tags=tags, relationships=[u]))
+                        indicators.append(Indicator('Email - Content - Domain Name', tld, username=username, status=status, tags=tags, relationships=[u]))
 
                 # XXX hack for noisy sharepoint URLs.
                 if netloc.endswith('sharepoint.com') and '_layouts' in parsed_url.path:
@@ -159,19 +163,19 @@ def make_url_indicators(urls, tags=[], from_email_content=False):
                     continue
 
                 # Full URL
-                indicators.append(Indicator('URI - URL', u, tags=tags))
+                indicators.append(Indicator('URI - URL', u, tags=tags, username=username))
 
                 # Path
-                indicators.append(Indicator('URI - Path', parsed_url.path, status=status, tags=tags, relationships=[u, parsed_url.netloc]))
+                indicators.append(Indicator('URI - Path', parsed_url.path, username=username, status=status, tags=tags, relationships=[u, parsed_url.netloc]))
                 try:
                     decoded_path = urllib.parse.unquote(parsed_url.path)
                     if not decoded_path == parsed_url.path:
-                        indicators.append(Indicator('URI - Path', decoded_path, status=status, tags=tags, relationships=[u, parsed_url.netloc]))
+                        indicators.append(Indicator('URI - Path', decoded_path, username=username, status=status, tags=tags, relationships=[u, parsed_url.netloc]))
                 except:
                     pass
 
                 # Query
-                indicators.append(Indicator('URI - Path', parsed_url.query, status=status, tags=tags, relationships=[u, parsed_url.netloc]))
+                indicators.append(Indicator('URI - Path', parsed_url.query, username=username, status=status, tags=tags, relationships=[u, parsed_url.netloc]))
 
     good_indicators = [i for i in set(indicators) if i.value]
 

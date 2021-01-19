@@ -86,7 +86,27 @@ class BaseConfluencePage(ConfluenceConnector):
     def get_page_version(self):
         if self.page_exists():
             return self.cached_page["results"][0]["version"]["number"]
-        
+
+    def get_page_history_version_by_user(self):
+        version_history = {}
+        if self.page_exists():
+            current_version = self.get_page_version() #should be an int
+            version_history = {}
+            params={'status':'historical', 'version':1}
+            try:
+                while params['version'] <= current_version:
+                    r = requests.get(f"{self.api_url}/{self.get_page_id()}", params=params, auth=(self.username, self.password), verify=self.verify_requests)
+                    if r.status_code == 200:
+                        result = r.json()
+                        version_history[params['version']] = result['version']['by']['username']
+                    else:
+                        self.logger.error(f"got {r.status_code} from Confluence server.")
+                    params['version'] += 1
+            except Exception as e:
+                self.logger.error(f"problem making page history map: {e}")
+
+        return version_history
+
     def get_labels(self):
         if self.page_exists():
             page_id = self.get_page_id()
@@ -168,6 +188,20 @@ class BaseConfluencePage(ConfluenceConnector):
                 return section
             else:
                 self.logger.error("Did not find section '" + section_id + "' on page '" + self.page_title + "'.")
+
+    def get_section_by_version(self, section_id, version):
+        """Get the content for this section at the history version."""
+        params={'status':"historical", 'version': version, 'expand': 'body.storage,version'}
+        r = requests.get(f"{self.api_url}/{self.get_page_id()}", params=params, auth=(self.username, self.password), verify=self.verify_requests)
+        if r.status_code == 200:
+            result = r.json()
+            this_soup = self.soupify(result['body']['storage']['value'])
+            section = this_soup.find("ac:structured-macro", attrs={"ac:name": "section", "ac:macro-id": section_id})
+            if section:
+                return section
+        else:
+            self.logger.error(f"{r.status_code}: {r.text}")
+            return None
 
     def update_page(self, page_text):
         if self.page_exists():
